@@ -1,0 +1,12 @@
+Nuevo apartado {order_reference}
+
+Separa estas prendas (el stock online ya está descontado):
+{products_txt}
+Clienta: {firstname} {lastname}
+Teléfono: {phone}
+Email: {email}
+
+Importe a cobrar: {total}
+Caduca: {expires_at}
+
+Al cobrar en el PoS, marca el pedido como «Pagado y recogido en tienda» en Pedidos > Apartados en tienda.

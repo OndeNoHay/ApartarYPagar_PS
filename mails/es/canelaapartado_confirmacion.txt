@@ -1,0 +1,13 @@
+¡Te lo guardamos, {firstname}!
+
+Tu apartado {order_reference} está reservado hasta el {expires_at}.
+
+Prendas apartadas:
+{products_txt}
+Importe a pagar en la tienda: {total}
+
+{pickup_info_txt}
+
+Si no pasas antes de esa hora, el apartado se anulará y las prendas volverán a la venta. Si ya no lo quieres, puedes anularlo desde «Mis pedidos» en tu cuenta.
+
+{shop_name}

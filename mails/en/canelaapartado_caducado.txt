@@ -1,0 +1,7 @@
+Tu apartado ha caducado
+
+Hola, {firstname}. Te guardamos el apartado {order_reference} hasta el {expires_at}, pero no pudiste pasar a recogerlo, así que lo hemos anulado y las prendas han vuelto a la venta:
+{products_txt}
+Si todavía te interesan, puedes volver a apartarlas desde la web mientras haya stock.
+
+{shop_name}

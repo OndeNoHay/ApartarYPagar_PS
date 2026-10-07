@@ -1,0 +1,12 @@
+.canelaapartado-carrier-info,
+.canelaapartado-payment-info,
+.canelaapartado-return {
+  margin: 1rem 0;
+}
+.canelaapartado-carrier-info {
+  padding: .75rem 1rem;
+  border-left: 3px solid #e7a33e;
+  background: #fdf7ee;
+}
+.canelaapartado-carrier-info ul { margin: .25rem 0 0 1.25rem; }
+.canelaapartado-pickup { white-space: normal; color: #555; }
