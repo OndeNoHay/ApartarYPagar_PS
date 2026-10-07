@@ -26,6 +26,7 @@ Probado en **PrestaShop 8.1.4** (PHP 8.1, tema Classic).
    - La clienta recibe un correo avisándola.
    - El apartado cuenta como no recogido para el bloqueo.
 7. **Anulación por la clienta.** Puede anular el apartado desde *Mi cuenta → Pedidos*. El stock vuelve a la web y no cuenta como no recogido.
+   Se envía un correo a la clienta confirmando la anulación y otro a la tienda para que devuelva las prendas a su sitio.
 
 ## Etiqueta en los productos (desde 1.1.0)
 

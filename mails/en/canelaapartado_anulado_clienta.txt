@@ -1,0 +1,7 @@
+Has anulado tu apartado
+
+Hola, {firstname}. Te confirmamos que has anulado el apartado {order_reference}, así que ya no te lo guardamos:
+{products_txt}
+Gracias por avisarnos: así otra clienta podrá llevárselo. Si cambias de idea, puedes volver a apartarlo desde la web mientras haya stock.
+
+{shop_name}

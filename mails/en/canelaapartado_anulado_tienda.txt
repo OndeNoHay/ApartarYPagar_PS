@@ -1,0 +1,7 @@
+Apartado {order_reference} anulado por la clienta
+
+La clienta ha anulado su apartado desde la web. Devuelve estas prendas a su sitio (el stock online ya se ha repuesto):
+{products_txt}
+Clienta: {firstname} {lastname}
+Teléfono: {phone}
+Email: {email}

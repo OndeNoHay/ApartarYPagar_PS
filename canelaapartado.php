@@ -52,7 +52,7 @@ class CanelaApartado extends PaymentModule
     {
         $this->name = 'canelaapartado';
         $this->tab = 'payments_gateways';
-        $this->version = '1.1.0';
+        $this->version = '1.1.1';
         $this->author = 'Canela';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -877,6 +877,45 @@ class CanelaApartado extends PaymentModule
             ],
             $customer->email,
             $customer->firstname . ' ' . $customer->lastname
+        );
+    }
+
+    /** La clienta ha anulado su apartado: confirmación a ella y aviso a la tienda. */
+    public function sendCancelledByCustomerMails(Order $order, CanelaApartadoReservation $reservation)
+    {
+        $customer = new Customer((int) $order->id_customer);
+        $address = new Address((int) $order->id_address_delivery);
+        $lines = $this->productLines($order);
+        $common = [
+            '{firstname}' => $customer->firstname,
+            '{lastname}' => $customer->lastname,
+            '{order_reference}' => $order->reference,
+            '{shop_name}' => Configuration::get('PS_SHOP_NAME', null, null, (int) $order->id_shop),
+        ];
+
+        $this->sendMail(
+            $order,
+            'canelaapartado_anulado_clienta',
+            sprintf($this->l('Has anulado tu apartado %s'), $order->reference),
+            $common + [
+                '{products_html}' => $this->productsHtml($lines, false),
+                '{products_txt}' => $this->productsTxt($lines, false),
+            ],
+            $customer->email,
+            $customer->firstname . ' ' . $customer->lastname
+        );
+
+        $this->sendMail(
+            $order,
+            'canelaapartado_anulado_tienda',
+            sprintf($this->l('Apartado %s anulado por la clienta: devolver prendas a la venta'), $order->reference),
+            $common + [
+                '{products_html}' => $this->productsHtml($lines, true),
+                '{products_txt}' => $this->productsTxt($lines, true),
+                '{email}' => $customer->email,
+                '{phone}' => trim($address->phone_mobile ?: $address->phone),
+            ],
+            (string) Configuration::get(self::CFG_STORE_EMAIL)
         );
     }
 

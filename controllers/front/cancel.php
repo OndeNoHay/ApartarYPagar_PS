@@ -37,6 +37,7 @@ class CanelaApartadoCancelModuleFrontController extends ModuleFrontController
         if ($module->changeOrderState($order, (int) Configuration::get('PS_OS_CANCELED'))) {
             $reservation->status = CanelaApartadoReservation::STATUS_CANCELLED;
             $reservation->update();
+            $module->sendCancelledByCustomerMails($order, $reservation);
             $this->success[] = $module->l('Has anulado el apartado. ¡Gracias por avisarnos!', 'cancel');
         } else {
             $this->errors[] = $module->l('No se pudo anular el apartado. Llámanos o escríbenos.', 'cancel');
