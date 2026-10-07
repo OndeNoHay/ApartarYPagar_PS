@@ -27,6 +27,23 @@ Probado en **PrestaShop 8.1.4** (PHP 8.1, tema Classic).
    - El apartado cuenta como no recogido para el bloqueo.
 7. **Anulación por la clienta.** Puede anular el apartado desde *Mi cuenta → Pedidos*. El stock vuelve a la web y no cuenta como no recogido.
 
+## Etiqueta en los productos (desde 1.1.0)
+
+- **Etiqueta «Aparta y paga en tienda»** sobre la foto, junto a «Nuevo» o «-20 %», en listados, buscador, portada y ficha. Sale en todos los productos con stock (sin exclusiones); si no queda ninguna talla, no sale.
+- **Bloque en la ficha**, junto a «Añadir al carrito»: explica el servicio, avisa de que hace falta cuenta (solo si no ha iniciado sesión) y enlaza a «Cómo funciona». Depende de la **talla elegida**: si esa talla está agotada, el bloque desaparece.
+- **Página CMS «Aparta y paga en tienda»** (*Diseño → Páginas*), creada al instalar con un texto recomendado. El texto es editable, pero **no se actualiza solo**: si cambiáis las horas, el máximo de prendas o el bloqueo, corregidlo también en la página.
+- En la configuración (*Etiqueta en los productos*): activar o desactivar la etiqueta y el bloque por separado, texto, **color** (por defecto naranja `#F28C28`) y qué página enlazar.
+- Todo se oculta solo si el módulo o su transportista están desactivados.
+
+### Comprobación con el tema Alysum
+
+La etiqueta usa el mecanismo estándar de PrestaShop (hook `actionProductFlagsModifier`, que rellena `product.flags`) y el bloque usa `displayProductAdditionalInfo`. Se ha probado con el tema Classic de 8.1.4. **No se ha podido probar con Alysum.** Tras instalar, revisad:
+
+1. **Un listado de categoría:** ¿sale la etiqueta naranja en las fotos, donde salen «Nuevo» o los descuentos?
+2. **Una ficha de producto:** ¿salen la etiqueta y el bloque? Cambiad a una talla agotada: ¿desaparece el bloque?
+
+Si algo no sale, el tema no usa ese mecanismo en esa plantilla. Se arregla con una línea en la plantilla de Alysum (o con su gestor de hooks); mandadme una captura y os digo cuál.
+
 ## Instalación
 
 1. Comprime la carpeta `canelaapartado/` en `canelaapartado.zip`. La carpeta tiene que ir dentro del zip.
@@ -93,3 +110,4 @@ El transportista y los dos estados de pedido se marcan como borrados, pero no se
 - **API:** cambio a «Pagado y recogido» vía `POST /api/order_histories`, simulando el PoS.
 - **Cron:** token incorrecto → 403; token correcto → caduca los vencidos.
 - **Desinstalar y reinstalar** sin duplicar el transportista.
+- **Etiqueta (1.1.0):** actualización desde 1.0.0, etiqueta en portada y ficha con el color configurado, sin etiqueta en productos agotados, bloque que desaparece con una talla agotada y vuelve con otra con stock, enlace a la página CMS, nota de «necesitas cuenta» solo sin sesión, cambio de color, desactivación y página CMS que se desactiva al desinstalar y se reactiva al reinstalar.

@@ -32,6 +32,14 @@ class CanelaApartado extends PaymentModule
     const CFG_OS_PAID = 'CANELAAPARTADO_OS_PAID';
     const CFG_CRON_TOKEN = 'CANELAAPARTADO_CRON_TOKEN';
     const CFG_LAST_RUN = 'CANELAAPARTADO_LAST_RUN';
+    const CFG_BADGE_ENABLED = 'CANELAAPARTADO_BADGE_ENABLED';
+    const CFG_BADGE_TEXT = 'CANELAAPARTADO_BADGE_TEXT';
+    const CFG_BADGE_COLOR = 'CANELAAPARTADO_BADGE_COLOR';
+    const CFG_BLOCK_ENABLED = 'CANELAAPARTADO_BLOCK_ENABLED';
+    const CFG_CMS_ID = 'CANELAAPARTADO_CMS_ID';
+
+    const DEFAULT_BADGE_TEXT = 'Aparta y paga en tienda';
+    const DEFAULT_BADGE_COLOR = '#F28C28'; // naranja
 
     // Cada cuánto, como mínimo, el propio tráfico de la tienda revisa los
     // apartados caducados (respaldo por si el cron del servidor no está puesto).
@@ -44,7 +52,7 @@ class CanelaApartado extends PaymentModule
     {
         $this->name = 'canelaapartado';
         $this->tab = 'payments_gateways';
-        $this->version = '1.0.0';
+        $this->version = '1.1.0';
         $this->author = 'Canela';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -116,7 +124,60 @@ class CanelaApartado extends PaymentModule
             Configuration::updateValue(self::CFG_CRON_TOKEN, bin2hex(random_bytes(16)));
         }
 
-        return $this->restrictPaymentToCarrier();
+        return $this->restrictPaymentToCarrier() && $this->installProductBadge();
+    }
+
+    /**
+     * Etiqueta «Aparta y paga en tienda» en los productos y página «Cómo funciona».
+     * Se llama al instalar y al actualizar desde 1.0.0 (upgrade/upgrade-1.1.0.php).
+     */
+    public function installProductBadge()
+    {
+        if (Configuration::get(self::CFG_BADGE_ENABLED) === false) {
+            Configuration::updateValue(self::CFG_BADGE_ENABLED, 1);
+        }
+        if (Configuration::get(self::CFG_BLOCK_ENABLED) === false) {
+            Configuration::updateValue(self::CFG_BLOCK_ENABLED, 1);
+        }
+        if (!Configuration::get(self::CFG_BADGE_TEXT)) {
+            Configuration::updateValue(self::CFG_BADGE_TEXT, self::DEFAULT_BADGE_TEXT);
+        }
+        if (!Configuration::get(self::CFG_BADGE_COLOR)) {
+            Configuration::updateValue(self::CFG_BADGE_COLOR, self::DEFAULT_BADGE_COLOR);
+        }
+
+        return $this->registerHook(['actionProductFlagsModifier', 'displayProductAdditionalInfo', 'displayHeader'])
+            && $this->installCmsPage();
+    }
+
+    /** Crea (o reactiva) la página CMS «Aparta y paga en tienda». */
+    private function installCmsPage()
+    {
+        $cms = new CMS((int) Configuration::get(self::CFG_CMS_ID));
+        if (Validate::isLoadedObject($cms)) {
+            $cms->active = true;
+
+            return $cms->save();
+        }
+
+        $html = file_get_contents(__DIR__ . '/views/templates/cms/como-funciona.html');
+        $cms = new CMS();
+        $cms->id_cms_category = 1; // categoría raíz «Inicio»
+        $cms->active = true;
+        $cms->indexation = true;
+        foreach (Language::getLanguages(false) as $lang) {
+            $id = (int) $lang['id_lang'];
+            $cms->meta_title[$id] = 'Aparta y paga en tienda';
+            $cms->head_seo_title[$id] = 'Aparta online y paga en la tienda';
+            $cms->meta_description[$id] = 'Aparta tus prendas online sin pagar nada y págalas al recogerlas en nuestra tienda. Te las guardamos hasta el cierre del día siguiente.';
+            $cms->link_rewrite[$id] = 'aparta-y-paga-en-tienda';
+            $cms->content[$id] = $html;
+        }
+        if (!$cms->add()) {
+            return false;
+        }
+
+        return Configuration::updateValue(self::CFG_CMS_ID, (int) $cms->id);
     }
 
     public function uninstall()
@@ -142,9 +203,17 @@ class CanelaApartado extends PaymentModule
             (new Tab($tabId))->delete();
         }
 
+        // La página «Cómo funciona» se desactiva (no se borra: puede tener cambios).
+        $cms = new CMS((int) Configuration::get(self::CFG_CMS_ID));
+        if (Validate::isLoadedObject($cms)) {
+            $cms->active = false;
+            $cms->save();
+        }
+
         // La tabla de apartados se conserva a propósito (histórico de no-shows).
         foreach ([self::CFG_HOURS, self::CFG_MAX_ITEMS, self::CFG_OPENING_HOURS, self::CFG_HOLIDAYS, self::CFG_NOSHOW_LIMIT,
-            self::CFG_STORE_EMAIL, self::CFG_PICKUP_INFO, self::CFG_LAST_RUN, ] as $key) {
+            self::CFG_STORE_EMAIL, self::CFG_PICKUP_INFO, self::CFG_LAST_RUN, self::CFG_BADGE_ENABLED,
+            self::CFG_BADGE_TEXT, self::CFG_BADGE_COLOR, self::CFG_BLOCK_ENABLED, ] as $key) {
             Configuration::deleteByName($key);
         }
 
@@ -928,14 +997,96 @@ class CanelaApartado extends PaymentModule
     {
         $this->maybeRunPseudoCron();
 
-        $page = isset($this->context->controller->php_self) ? $this->context->controller->php_self : '';
-        if (in_array($page, ['order', 'order-confirmation', 'order-detail'], true)) {
-            $this->context->controller->registerStylesheet(
-                'canelaapartado',
-                'modules/' . $this->name . '/views/css/front.css',
-                ['media' => 'all', 'priority' => 150]
-            );
+        // En todas las páginas: la etiqueta aparece en listados, buscador, portada...
+        $this->context->controller->registerStylesheet(
+            'canelaapartado',
+            'modules/' . $this->name . '/views/css/front.css',
+            ['media' => 'all', 'priority' => 150]
+        );
+    }
+
+    /* ------------------------------------------------------------------
+     * Etiqueta en productos
+     * ------------------------------------------------------------------ */
+
+    /** ¿Está el servicio operativo (módulo activo y transportista activo)? */
+    private function isServiceAvailable()
+    {
+        static $available = null;
+        if ($available === null) {
+            $carrier = $this->active ? $this->getCarrier() : null;
+            $available = $carrier && $carrier->active;
         }
+
+        return $available;
+    }
+
+    /**
+     * Se puede apartar si hay stock. $allVersions = true mira la suma de todas las
+     * tallas (listados); false, la talla seleccionada (ficha de producto).
+     */
+    private function hasStockToReserve($product, $allVersions)
+    {
+        if (!empty($product['is_virtual'])) {
+            return false;
+        }
+        if (!Configuration::get('PS_STOCK_MANAGEMENT')) {
+            return true;
+        }
+        $key = $allVersions && isset($product['quantity_all_versions']) ? 'quantity_all_versions' : 'quantity';
+
+        return isset($product[$key]) && (int) $product[$key] > 0;
+    }
+
+    public function getBadgeColor()
+    {
+        $color = (string) Configuration::get(self::CFG_BADGE_COLOR);
+
+        return preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : self::DEFAULT_BADGE_COLOR;
+    }
+
+    /** Color de la etiqueta (configurable) como variable CSS. */
+    public function hookDisplayHeader($params)
+    {
+        if (!$this->isServiceAvailable()) {
+            return '';
+        }
+
+        return '<style>:root{--canelaapartado-color:' . $this->getBadgeColor() . ';}</style>';
+    }
+
+    /** Añade la etiqueta junto a «Nuevo», «-20 %»... (listados y ficha). */
+    public function hookActionProductFlagsModifier($params)
+    {
+        if (!Configuration::get(self::CFG_BADGE_ENABLED) || !$this->isServiceAvailable()
+            || empty($params['product']) || !$this->hasStockToReserve($params['product'], true)) {
+            return;
+        }
+        $params['flags']['canelaapartado'] = [
+            'type' => 'canelaapartado',
+            'label' => (string) Configuration::get(self::CFG_BADGE_TEXT) ?: self::DEFAULT_BADGE_TEXT,
+        ];
+    }
+
+    /** Bloque explicativo junto a «Añadir al carrito» (según la talla elegida). */
+    public function hookDisplayProductAdditionalInfo($params)
+    {
+        if (!Configuration::get(self::CFG_BLOCK_ENABLED) || !$this->isServiceAvailable()
+            || empty($params['product']) || !$this->hasStockToReserve($params['product'], false)) {
+            return '';
+        }
+
+        $cms = new CMS((int) Configuration::get(self::CFG_CMS_ID), (int) $this->context->language->id);
+        $this->context->smarty->assign([
+            'canelaapartado_title' => (string) Configuration::get(self::CFG_BADGE_TEXT) ?: self::DEFAULT_BADGE_TEXT,
+            'canelaapartado_hours' => (int) Configuration::get(self::CFG_HOURS),
+            'canelaapartado_max' => (int) Configuration::get(self::CFG_MAX_ITEMS),
+            'canelaapartado_logged' => $this->context->customer && $this->context->customer->isLogged(),
+            'canelaapartado_cms_url' => (Validate::isLoadedObject($cms) && $cms->active)
+                ? $this->context->link->getCMSLink($cms) : '',
+        ]);
+
+        return $this->fetch('module:canelaapartado/views/templates/hook/product_block.tpl');
     }
 
     public function hookActionAdminControllerSetMedia($params)
@@ -1053,6 +1204,23 @@ class CanelaApartado extends PaymentModule
             }
         }
 
+        if (Tools::isSubmit('submitCanelaApartadoBadge')) {
+            $color = trim((string) Tools::getValue(self::CFG_BADGE_COLOR));
+            $text = trim((string) Tools::getValue(self::CFG_BADGE_TEXT));
+            if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+                $output .= $this->displayError($this->l('El color debe tener el formato #RRGGBB, por ejemplo #F28C28.'));
+            } elseif ($text === '' || Tools::strlen($text) > 40) {
+                $output .= $this->displayError($this->l('El texto de la etiqueta es obligatorio (máximo 40 caracteres).'));
+            } else {
+                Configuration::updateValue(self::CFG_BADGE_ENABLED, (int) (bool) Tools::getValue(self::CFG_BADGE_ENABLED));
+                Configuration::updateValue(self::CFG_BLOCK_ENABLED, (int) (bool) Tools::getValue(self::CFG_BLOCK_ENABLED));
+                Configuration::updateValue(self::CFG_BADGE_TEXT, $text);
+                Configuration::updateValue(self::CFG_BADGE_COLOR, Tools::strtoupper($color));
+                Configuration::updateValue(self::CFG_CMS_ID, (int) Tools::getValue(self::CFG_CMS_ID));
+                $output .= $this->displayConfirmation($this->l('Etiqueta guardada.'));
+            }
+        }
+
         if (Tools::isSubmit('submitCanelaApartadoRestrict')) {
             $output .= $this->restrictPaymentToCarrier()
                 ? $this->displayConfirmation($this->l('Restricciones de pago del transportista restablecidas.'))
@@ -1065,7 +1233,7 @@ class CanelaApartado extends PaymentModule
             $output .= $this->displayConfirmation($this->l('Clienta desbloqueada.'));
         }
 
-        return $output . $this->renderStatus() . $this->renderForm() . $this->renderBlocked();
+        return $output . $this->renderStatus() . $this->renderForm() . $this->renderBadgeForm() . $this->renderBlocked();
     }
 
     private function renderStatus()
@@ -1096,6 +1264,75 @@ class CanelaApartado extends PaymentModule
         ]);
 
         return $this->display(__FILE__, 'views/templates/admin/blocked.tpl');
+    }
+
+    private function renderBadgeForm()
+    {
+        $cmsOptions = [['id' => 0, 'name' => $this->l('— Sin enlace —')]];
+        foreach (CMS::listCms((int) $this->context->language->id) as $page) {
+            $cmsOptions[] = ['id' => (int) $page['id_cms'], 'name' => $page['meta_title']];
+        }
+        $switch = function ($name, $label, $desc) {
+            return [
+                'type' => 'switch',
+                'label' => $label,
+                'name' => $name,
+                'is_bool' => true,
+                'desc' => $desc,
+                'values' => [
+                    ['id' => $name . '_on', 'value' => 1, 'label' => $this->l('Sí')],
+                    ['id' => $name . '_off', 'value' => 0, 'label' => $this->l('No')],
+                ],
+            ];
+        };
+
+        $form = [
+            'form' => [
+                'legend' => ['title' => $this->l('Etiqueta en los productos'), 'icon' => 'icon-tag'],
+                'description' => $this->l('Solo se muestra en productos con stock, mientras el módulo y su transportista estén activos.'),
+                'input' => [
+                    $switch(self::CFG_BADGE_ENABLED, $this->l('Etiqueta sobre la foto'), $this->l('Junto a «Nuevo» o «Rebajado», en listados, buscador y ficha.')),
+                    $switch(self::CFG_BLOCK_ENABLED, $this->l('Bloque en la ficha de producto'), $this->l('Explicación junto a «Añadir al carrito», según la talla elegida.')),
+                    [
+                        'type' => 'text',
+                        'label' => $this->l('Texto de la etiqueta'),
+                        'name' => self::CFG_BADGE_TEXT,
+                        'maxlength' => 40,
+                    ],
+                    [
+                        'type' => 'color',
+                        'label' => $this->l('Color de la etiqueta'),
+                        'name' => self::CFG_BADGE_COLOR,
+                        'desc' => $this->l('Formato #RRGGBB. Por defecto, naranja #F28C28.'),
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Página «Cómo funciona»'),
+                        'name' => self::CFG_CMS_ID,
+                        'options' => ['query' => $cmsOptions, 'id' => 'id', 'name' => 'name'],
+                        'desc' => $this->l('Se enlaza desde el bloque de la ficha. Su texto se edita en Diseño > Páginas.'),
+                    ],
+                ],
+                'submit' => ['title' => $this->l('Guardar'), 'name' => 'submitCanelaApartadoBadge'],
+            ],
+        ];
+
+        $helper = new HelperForm();
+        $helper->module = $this;
+        $helper->name_controller = $this->name . '_badge';
+        $helper->token = Tools::getAdminTokenLite('AdminModules');
+        $helper->currentIndex = AdminController::$currentIndex . '&configure=' . $this->name;
+        $helper->default_form_language = (int) Configuration::get('PS_LANG_DEFAULT');
+        $helper->submit_action = 'submitCanelaApartadoBadge';
+        $helper->fields_value = [
+            self::CFG_BADGE_ENABLED => (int) Tools::getValue(self::CFG_BADGE_ENABLED, Configuration::get(self::CFG_BADGE_ENABLED)),
+            self::CFG_BLOCK_ENABLED => (int) Tools::getValue(self::CFG_BLOCK_ENABLED, Configuration::get(self::CFG_BLOCK_ENABLED)),
+            self::CFG_BADGE_TEXT => Tools::getValue(self::CFG_BADGE_TEXT, Configuration::get(self::CFG_BADGE_TEXT)),
+            self::CFG_BADGE_COLOR => Tools::getValue(self::CFG_BADGE_COLOR, $this->getBadgeColor()),
+            self::CFG_CMS_ID => (int) Tools::getValue(self::CFG_CMS_ID, Configuration::get(self::CFG_CMS_ID)),
+        ];
+
+        return $helper->generateForm([$form]);
     }
 
     private function renderForm()

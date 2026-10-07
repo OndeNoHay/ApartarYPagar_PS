@@ -10,3 +10,21 @@
 }
 .canelaapartado-carrier-info ul { margin: .25rem 0 0 1.25rem; }
 .canelaapartado-pickup { white-space: normal; color: #555; }
+
+/* Etiqueta «Aparta y paga en tienda» (el color viene de la configuración) */
+.product-flags .product-flag.canelaapartado,
+.product-flag.canelaapartado {
+  background: var(--canelaapartado-color, #F28C28) !important;
+  color: #fff !important;
+}
+.canelaapartado-product-block {
+  margin: 1rem 0;
+  padding: .75rem 1rem;
+  border-left: 3px solid var(--canelaapartado-color, #F28C28);
+  background: #fff8f0;
+}
+.canelaapartado-product-block p { margin: 0 0 .35rem; }
+.canelaapartado-product-block p:last-child { margin-bottom: 0; }
+.canelaapartado-product-title { font-size: 1.05em; }
+.canelaapartado-note { color: #666; font-size: .9em; }
+.canelaapartado-link { color: var(--canelaapartado-color, #F28C28); font-weight: 600; }
