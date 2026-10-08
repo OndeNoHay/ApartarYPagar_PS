@@ -37,6 +37,7 @@ Probado en **PrestaShop 8.1.4** (PHP 8.1, tema Classic).
 - **Bloque en la ficha**, junto a «Añadir al carrito»: explica el servicio, avisa de que hace falta cuenta (solo si no ha iniciado sesión) y enlaza a «Cómo funciona». Depende de la **talla elegida**: si esa talla está agotada, el bloque desaparece.
 - **Página CMS «Aparta y paga en tienda»** (*Diseño → Páginas*), creada al instalar con un texto recomendado. El texto es editable, pero **no se actualiza solo**: si cambiáis las horas, el máximo de prendas o el bloqueo, corregidlo también en la página.
 - En la configuración (*Etiqueta en los productos*): activar o desactivar la etiqueta y el bloque por separado, texto, **color** (por defecto naranja `#F28C28`) y qué página enlazar.
+- **En el móvil** (pantallas de menos de 768 px) la etiqueta **no sale en los listados** (portada, categorías, buscador, carruseles), porque en las miniaturas estrechas tapa la foto; sigue saliendo en la foto de la ficha. Se puede volver a mostrar con *Etiqueta en listados del móvil* (desde 1.1.3).
 - Todo se oculta solo si el módulo o su transportista están desactivados.
 
 ### Comprobación con el tema Alysum
