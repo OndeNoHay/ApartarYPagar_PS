@@ -35,6 +35,7 @@ class CanelaApartado extends PaymentModule
     const CFG_BADGE_ENABLED = 'CANELAAPARTADO_BADGE_ENABLED';
     const CFG_BADGE_TEXT = 'CANELAAPARTADO_BADGE_TEXT';
     const CFG_BADGE_COLOR = 'CANELAAPARTADO_BADGE_COLOR';
+    const CFG_BADGE_MOBILE_LIST = 'CANELAAPARTADO_BADGE_MOBILE_LIST';
     const CFG_BLOCK_ENABLED = 'CANELAAPARTADO_BLOCK_ENABLED';
     const CFG_CMS_ID = 'CANELAAPARTADO_CMS_ID';
 
@@ -52,7 +53,7 @@ class CanelaApartado extends PaymentModule
     {
         $this->name = 'canelaapartado';
         $this->tab = 'payments_gateways';
-        $this->version = '1.1.1';
+        $this->version = '1.1.3';
         $this->author = 'Canela';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -169,7 +170,7 @@ class CanelaApartado extends PaymentModule
             $id = (int) $lang['id_lang'];
             $cms->meta_title[$id] = 'Aparta y paga en tienda';
             $cms->head_seo_title[$id] = 'Aparta online y paga en la tienda';
-            $cms->meta_description[$id] = 'Aparta tus prendas online sin pagar nada y págalas al recogerlas en nuestra tienda. Te las guardamos hasta el cierre del día siguiente.';
+            $cms->meta_description[$id] = 'Aparta tus prendas online sin pagar nada y págalas al recogerlas en nuestra tienda. Te las guardamos 24 horas, como mínimo hasta el final del siguiente turno en que abramos.';
             $cms->link_rewrite[$id] = 'aparta-y-paga-en-tienda';
             $cms->content[$id] = $html;
         }
@@ -213,7 +214,7 @@ class CanelaApartado extends PaymentModule
         // La tabla de apartados se conserva a propósito (histórico de no-shows).
         foreach ([self::CFG_HOURS, self::CFG_MAX_ITEMS, self::CFG_OPENING_HOURS, self::CFG_HOLIDAYS, self::CFG_NOSHOW_LIMIT,
             self::CFG_STORE_EMAIL, self::CFG_PICKUP_INFO, self::CFG_LAST_RUN, self::CFG_BADGE_ENABLED,
-            self::CFG_BADGE_TEXT, self::CFG_BADGE_COLOR, self::CFG_BLOCK_ENABLED, ] as $key) {
+            self::CFG_BADGE_TEXT, self::CFG_BADGE_COLOR, self::CFG_BADGE_MOBILE_LIST, self::CFG_BLOCK_ENABLED, ] as $key) {
             Configuration::deleteByName($key);
         }
 
@@ -496,9 +497,9 @@ class CanelaApartado extends PaymentModule
 
     /**
      * Fecha límite de recogida: ahora + N horas. Si en ese momento la tienda
-     * está cerrada (noche, sábado tarde, domingo, festivo...), se alarga hasta
-     * el cierre del siguiente día en que abra, para que la clienta tenga
-     * siempre al menos una jornada de tienda abierta para venir.
+     * está cerrada (noche, mediodía, sábado tarde, domingo, festivo...), se
+     * alarga hasta el final del siguiente turno de apertura, para que la
+     * clienta tenga siempre un turno con la tienda abierta para venir.
      */
     public function computeExpiry(DateTime $from = null)
     {
@@ -516,15 +517,16 @@ class CanelaApartado extends PaymentModule
                     if ($sameDay && $minutes >= $p[0] && $minutes < $p[1]) {
                         return $target; // la tienda está abierta en ese momento
                     }
-                }
-                $last = end($periods);
-                $close = clone $day;
-                $close->setTime(intdiv($last[1], 60) % 24, $last[1] % 60, 0);
-                if ($last[1] >= 24 * 60) {
-                    $close->modify('+1 day');
-                }
-                if ($close > $target) {
-                    return $close;
+                    if (!$sameDay || $minutes < $p[0]) {
+                        // primer turno que empieza después: caduca al terminar ese turno
+                        $close = clone $day;
+                        $close->setTime(intdiv($p[1], 60) % 24, $p[1] % 60, 0);
+                        if ($p[1] >= 24 * 60) {
+                            $close->modify('+1 day');
+                        }
+
+                        return $close;
+                    }
                 }
             }
             $day->modify('+1 day');
@@ -1091,7 +1093,17 @@ class CanelaApartado extends PaymentModule
             return '';
         }
 
-        return '<style>:root{--canelaapartado-color:' . $this->getBadgeColor() . ';}</style>';
+        $css = ':root{--canelaapartado-color:' . $this->getBadgeColor() . ';}';
+        if (!Configuration::get(self::CFG_BADGE_MOBILE_LIST)) {
+            // En móvil las miniaturas son estrechas y la etiqueta tapa la foto:
+            // se oculta en los listados y se deja solo sobre la foto de la ficha.
+            $css .= '@media (max-width:767px){'
+                . 'body:not(#product) .product-flag.canelaapartado,'
+                . '#product .product-miniature .product-flag.canelaapartado,'
+                . '#product .js-product-miniature .product-flag.canelaapartado{display:none!important;}}';
+        }
+
+        return '<style>' . $css . '</style>';
     }
 
     /** Añade la etiqueta junto a «Nuevo», «-20 %»... (listados y ficha). */
@@ -1252,6 +1264,7 @@ class CanelaApartado extends PaymentModule
                 $output .= $this->displayError($this->l('El texto de la etiqueta es obligatorio (máximo 40 caracteres).'));
             } else {
                 Configuration::updateValue(self::CFG_BADGE_ENABLED, (int) (bool) Tools::getValue(self::CFG_BADGE_ENABLED));
+                Configuration::updateValue(self::CFG_BADGE_MOBILE_LIST, (int) (bool) Tools::getValue(self::CFG_BADGE_MOBILE_LIST));
                 Configuration::updateValue(self::CFG_BLOCK_ENABLED, (int) (bool) Tools::getValue(self::CFG_BLOCK_ENABLED));
                 Configuration::updateValue(self::CFG_BADGE_TEXT, $text);
                 Configuration::updateValue(self::CFG_BADGE_COLOR, Tools::strtoupper($color));
@@ -1331,6 +1344,7 @@ class CanelaApartado extends PaymentModule
                 'description' => $this->l('Solo se muestra en productos con stock, mientras el módulo y su transportista estén activos.'),
                 'input' => [
                     $switch(self::CFG_BADGE_ENABLED, $this->l('Etiqueta sobre la foto'), $this->l('Junto a «Nuevo» o «Rebajado», en listados, buscador y ficha.')),
+                    $switch(self::CFG_BADGE_MOBILE_LIST, $this->l('Etiqueta en listados del móvil'), $this->l('Con «No», en pantallas de menos de 768 px solo sale en la foto de la ficha, no en portada, categorías ni buscador.')),
                     $switch(self::CFG_BLOCK_ENABLED, $this->l('Bloque en la ficha de producto'), $this->l('Explicación junto a «Añadir al carrito», según la talla elegida.')),
                     [
                         'type' => 'text',
@@ -1365,6 +1379,7 @@ class CanelaApartado extends PaymentModule
         $helper->submit_action = 'submitCanelaApartadoBadge';
         $helper->fields_value = [
             self::CFG_BADGE_ENABLED => (int) Tools::getValue(self::CFG_BADGE_ENABLED, Configuration::get(self::CFG_BADGE_ENABLED)),
+            self::CFG_BADGE_MOBILE_LIST => (int) Tools::getValue(self::CFG_BADGE_MOBILE_LIST, Configuration::get(self::CFG_BADGE_MOBILE_LIST)),
             self::CFG_BLOCK_ENABLED => (int) Tools::getValue(self::CFG_BLOCK_ENABLED, Configuration::get(self::CFG_BLOCK_ENABLED)),
             self::CFG_BADGE_TEXT => Tools::getValue(self::CFG_BADGE_TEXT, Configuration::get(self::CFG_BADGE_TEXT)),
             self::CFG_BADGE_COLOR => Tools::getValue(self::CFG_BADGE_COLOR, $this->getBadgeColor()),
@@ -1384,7 +1399,7 @@ class CanelaApartado extends PaymentModule
                 'label' => sprintf($this->l('Horario %s'), $name),
                 'name' => 'opening_' . $id,
                 'placeholder' => $this->l('Cerrado'),
-                'desc' => $id === 7 ? $this->l('Vacío = cerrado todo el día. Si un apartado vence con la tienda cerrada, se alarga hasta el cierre del siguiente día abierto.') : '',
+                'desc' => $id === 7 ? $this->l('Vacío = cerrado todo el día. Si un apartado vence con la tienda cerrada, se alarga hasta el final del siguiente turno de apertura.') : '',
             ];
         }
 

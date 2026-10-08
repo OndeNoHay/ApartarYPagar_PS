@@ -15,7 +15,10 @@ Probado en **PrestaShop 8.1.4** (PHP 8.1, tema Classic).
 3. **Pedido.** Se crea en el estado «Apartado - pendiente de pago en tienda», sin cobro.
    - PrestaShop **descuenta el stock online** en ese momento, así que la prenda deja de venderse en la web.
    - Se envían dos correos: uno a la clienta (qué ha apartado, hasta cuándo, importe y datos de recogida) y otro a la tienda (`pedidos1@canelamoda.es`) con las prendas a separar, la referencia o EAN y el teléfono.
-4. **Plazo.** El apartado dura **24 h**. Si en ese momento la tienda está cerrada (noche, mediodía, sábado tarde, domingo o festivo), se alarga **hasta el cierre del siguiente día en que abra**. Ejemplo: apartado el viernes a las 18:00 → caduca el lunes a las 20:30 (o el martes, si el lunes es festivo).
+4. **Plazo.** El apartado dura **24 h**. Si en ese momento la tienda está cerrada (noche, mediodía, sábado tarde, domingo o festivo), se alarga **hasta el final del siguiente turno de apertura** (desde 1.1.2; antes era hasta el cierre de ese día). Ejemplos con el horario por defecto:
+   - Jueves 08:00 → viernes 08:00 (cerrado) → caduca el **viernes a las 14:00**.
+   - Jueves 15:00 → viernes 15:00 (mediodía) → caduca el **viernes a las 20:30**.
+   - Viernes 18:00 → sábado 18:00 (cerrado) → caduca el **lunes a las 14:00** (o el martes, si el lunes es festivo).
 5. **Cobro en tienda.** La clienta paga en el PoS. Después, el pedido se marca como «Pagado y recogido en tienda» de cualquiera de estas formas:
    - *Pedidos → Apartados en tienda → Cobrado*.
    - Cambiando el estado en la ficha del pedido.
@@ -34,6 +37,7 @@ Probado en **PrestaShop 8.1.4** (PHP 8.1, tema Classic).
 - **Bloque en la ficha**, junto a «Añadir al carrito»: explica el servicio, avisa de que hace falta cuenta (solo si no ha iniciado sesión) y enlaza a «Cómo funciona». Depende de la **talla elegida**: si esa talla está agotada, el bloque desaparece.
 - **Página CMS «Aparta y paga en tienda»** (*Diseño → Páginas*), creada al instalar con un texto recomendado. El texto es editable, pero **no se actualiza solo**: si cambiáis las horas, el máximo de prendas o el bloqueo, corregidlo también en la página.
 - En la configuración (*Etiqueta en los productos*): activar o desactivar la etiqueta y el bloque por separado, texto, **color** (por defecto naranja `#F28C28`) y qué página enlazar.
+- **En el móvil** (pantallas de menos de 768 px) la etiqueta **no sale en los listados** (portada, categorías, buscador, carruseles), porque en las miniaturas estrechas tapa la foto; sigue saliendo en la foto de la ficha. Se puede volver a mostrar con *Etiqueta en listados del móvil* (desde 1.1.3).
 - Todo se oculta solo si el módulo o su transportista están desactivados.
 
 ### Comprobación con el tema Alysum
