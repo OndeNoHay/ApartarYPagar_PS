@@ -52,7 +52,7 @@ class CanelaApartado extends PaymentModule
     {
         $this->name = 'canelaapartado';
         $this->tab = 'payments_gateways';
-        $this->version = '1.1.1';
+        $this->version = '1.1.2';
         $this->author = 'Canela';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -169,7 +169,7 @@ class CanelaApartado extends PaymentModule
             $id = (int) $lang['id_lang'];
             $cms->meta_title[$id] = 'Aparta y paga en tienda';
             $cms->head_seo_title[$id] = 'Aparta online y paga en la tienda';
-            $cms->meta_description[$id] = 'Aparta tus prendas online sin pagar nada y págalas al recogerlas en nuestra tienda. Te las guardamos hasta el cierre del día siguiente.';
+            $cms->meta_description[$id] = 'Aparta tus prendas online sin pagar nada y págalas al recogerlas en nuestra tienda. Te las guardamos 24 horas, como mínimo hasta el final del siguiente turno en que abramos.';
             $cms->link_rewrite[$id] = 'aparta-y-paga-en-tienda';
             $cms->content[$id] = $html;
         }
@@ -496,9 +496,9 @@ class CanelaApartado extends PaymentModule
 
     /**
      * Fecha límite de recogida: ahora + N horas. Si en ese momento la tienda
-     * está cerrada (noche, sábado tarde, domingo, festivo...), se alarga hasta
-     * el cierre del siguiente día en que abra, para que la clienta tenga
-     * siempre al menos una jornada de tienda abierta para venir.
+     * está cerrada (noche, mediodía, sábado tarde, domingo, festivo...), se
+     * alarga hasta el final del siguiente turno de apertura, para que la
+     * clienta tenga siempre un turno con la tienda abierta para venir.
      */
     public function computeExpiry(DateTime $from = null)
     {
@@ -516,15 +516,16 @@ class CanelaApartado extends PaymentModule
                     if ($sameDay && $minutes >= $p[0] && $minutes < $p[1]) {
                         return $target; // la tienda está abierta en ese momento
                     }
-                }
-                $last = end($periods);
-                $close = clone $day;
-                $close->setTime(intdiv($last[1], 60) % 24, $last[1] % 60, 0);
-                if ($last[1] >= 24 * 60) {
-                    $close->modify('+1 day');
-                }
-                if ($close > $target) {
-                    return $close;
+                    if (!$sameDay || $minutes < $p[0]) {
+                        // primer turno que empieza después: caduca al terminar ese turno
+                        $close = clone $day;
+                        $close->setTime(intdiv($p[1], 60) % 24, $p[1] % 60, 0);
+                        if ($p[1] >= 24 * 60) {
+                            $close->modify('+1 day');
+                        }
+
+                        return $close;
+                    }
                 }
             }
             $day->modify('+1 day');
@@ -1384,7 +1385,7 @@ class CanelaApartado extends PaymentModule
                 'label' => sprintf($this->l('Horario %s'), $name),
                 'name' => 'opening_' . $id,
                 'placeholder' => $this->l('Cerrado'),
-                'desc' => $id === 7 ? $this->l('Vacío = cerrado todo el día. Si un apartado vence con la tienda cerrada, se alarga hasta el cierre del siguiente día abierto.') : '',
+                'desc' => $id === 7 ? $this->l('Vacío = cerrado todo el día. Si un apartado vence con la tienda cerrada, se alarga hasta el final del siguiente turno de apertura.') : '',
             ];
         }
 
